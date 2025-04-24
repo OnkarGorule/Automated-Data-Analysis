@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Statistics</title>
+    <style>
+        /* Basic Reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #CAF0F8;
+            padding: 0;
+        }
+
+        /* Navbar */
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 0px;
+            padding: 15px 30px;
+            position: sticky;
+            top: 0;
+            background: linear-gradient(90deg, #023E8A, #0077B6);
+            color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            
+        }
+
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            margin: 0 10px;
+            font-size: 1rem;
+            transition: 0.3s;
+        }
+
+        .navbar a:hover {
+            text-decoration: underline;
+            color: #90E0EF;
+        }
+
+        h1, h2, h3 {
+            /* text-align: center; */
+            color: #023E8A;
+            margin-bottom: 20px;
+        }
+
+        label {
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 5px;
+        }
+
+        .da-container {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .da-container p {
+            margin-bottom: 30px;
+            color: #555;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Cards */
+        .da-sections {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .da-card {
+            background: linear-gradient(135deg, #90E0EF, #0077B6);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            width: 250px;
+            padding: 20px;
+            transition: transform 0.3s;
+            color: #023E8A;
+        }
+
+        .da-card:hover {
+            transform: translateY(-10px);
+        }
+
+        .da-card h2 {
+            color: #023E8A;
+            margin-bottom: 10px;
+        }
+
+        .da-card p {
+            color: white;
+            font-size: 0.95em;
+        }
+
+        input[type="file"],
+        button {
+            padding: 10px;
+            font-size: 16px;
+            margin-top: 5px;
+            width: 100%;
+            max-width: 241px;
+            margin-bottom: 15px;
+            border: 1px solid #90E0EF;
+            border-radius: 5px;
+            background-color: #fff;
+        }
+
+        button {
+            background-color: #0077B6;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #023E8A;
+        }
+
+        #step2, #select-variables, #step3, #operations, #visualizations, #hypothesis, #correlation, #regression {
+            display: none;
+        }
+
+        .checkbox-group {
+            margin-bottom: 15px;
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .checkbox-group label {
+            margin-right: 20px;
+            margin-bottom: 10px;
+        }
+
+        .result {
+            margin-top: 20px;
+        }
+
+        .success {
+            font-weight: bold;
+            color: #0077B6;
+        }
+
+        .error {
+            font-weight: bold;
+            color: red;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+
+        table th, table td {
+            padding: 10px;
+            text-align: center;
+            border: 1px solid #90E0EF;
+        }
+
+        table th {
+            background-color: #0077B6;
+            color: white;
+        }
+
+        table tr:nth-child(even) {
+            background-color: #CAF0F8;
+        }
+
+        table tr:hover {
+            background-color: #90E0EF;
+        }
+        
+
+        @media (max-width: 600px) {
+            input[type="file"],
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+    <script>
+        // Global variables to store original variables
+        let originalContinuousVars = [];
+        let originalDiscreteVars = [];
+
+        async function uploadCSV() {
+            const fileInput = document.getElementById('csvFile');
+            if (!fileInput.files[0] || !fileInput.files[0].name.endsWith('.csv')) {
+                displayError('Please upload a valid CSV file.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('csv_file', fileInput.files[0]);
+
+            try {
+                const response = await fetch('/upload_csv', { method: 'POST', body: formData });
+                const result = await response.json();
+
+                if (result.error) {
+                    displayError(result.error);
+                } else {
+                    // Store variables globally
+                    originalContinuousVars = result.continuous_vars;
+                    originalDiscreteVars = result.discrete_vars;
+
+                    populateVariables(result.continuous_vars, result.discrete_vars);
+
+                    // Show the buttons for analysis types
+                    document.getElementById('step2').style.display = 'block';
+                }
+            } catch (error) {
+                displayError(error.message);
+            }
+        }
+
+        function populateVariables(continuousVars = [], discreteVars = []) {
+            const continuousContainer = document.getElementById('continuous-vars');
+            const discreteContainer = document.getElementById('discrete-vars');
+
+            continuousContainer.innerHTML = '';
+            discreteContainer.innerHTML = '';
+
+            continuousVars.forEach(variable => {
+                continuousContainer.innerHTML += `<label><input type="checkbox" class="variable" value="${variable}"> ${variable}</label>`;
+            });
+
+            discreteVars.forEach(variable => {
+                discreteContainer.innerHTML += `<label><input type="checkbox" class="variable" value="${variable}"> ${variable}</label>`;
+            });
+        }
+
+        function toggleSection(sectionId) {
+            // Restore original variables if not in Regression section
+            if (sectionId !== 'regression') {
+                populateVariables(originalContinuousVars, originalDiscreteVars);
+                document.getElementById('select-variables').style.display = 'block';
+            } else {
+                populateRegressionVariables();
+            }
+
+            // Toggle visibility of sections
+            document.getElementById('operations').style.display = sectionId === 'operations' ? 'block' : 'none';
+            document.getElementById('visualizations').style.display = sectionId === 'visualizations' ? 'block' : 'none';
+            document.getElementById('hypothesis').style.display = sectionId === 'hypothesis' ? 'block' : 'none';
+            document.getElementById('correlation').style.display = sectionId === 'correlation' ? 'block' : 'none';
+            document.getElementById('regression').style.display = sectionId === 'regression' ? 'block' : 'none';
+        }
+
+        function populateRegressionVariables() {
+            document.getElementById('select-variables').style.display = 'none';
+
+            const continuousContainer = document.getElementById('regression-continuous-vars');
+            const radioContainer = document.getElementById('regression-radio-vars');
+
+            continuousContainer.innerHTML = '';
+            radioContainer.innerHTML = '';
+
+            // Merge continuous and discrete variables
+            const allVariables = [...originalContinuousVars, ...originalDiscreteVars];
+
+            // Add checkboxes for independent variables
+            allVariables.forEach(variable => {
+                continuousContainer.innerHTML += `<label><input type="checkbox" class="regression-variable" value="${variable}"> ${variable}</label>`;
+            });
+
+            // Add radio buttons for dependent variable
+            allVariables.forEach(variable => {
+                radioContainer.innerHTML += `<label><input type="radio" name="regression-dependent" value="${variable}"> ${variable}</label>`;
+            });
+        }
+
+        function displayError(message) {
+            const resultElement = document.getElementById('result');
+            resultElement.innerText = `Error: ${message}`;
+            resultElement.className = 'error';
+        }
+
+        async function performOperation() {
+            const selectedVariables = Array.from(document.querySelectorAll('.variable:checked')).map(input => input.value);
+            const selectedOperations = Array.from(document.querySelectorAll('.operation:checked')).map(input => input.value);
+
+            if (selectedVariables.length === 0 || selectedOperations.length === 0) {
+                displayError('Please select at least one variable and one operation.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/perform_operation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        variables: selectedVariables,
+                        descriptive: selectedOperations
+                    })
+                });
+
+                const result = await response.json();
+                if (result.error) {
+                    displayError(result.error);
+                } else {
+                    renderResults(selectedVariables, selectedOperations, result.result);
+                }
+            } catch (error) {
+                displayError(error.message);
+            }
+        }
+
+        function renderResults(variables, operations, result) {
+            let resultHTML = '<table><thead><tr><th>Operation</th>';
+            variables.forEach(variable => {
+                resultHTML += `<th>${variable}</th>`;
+            });
+            resultHTML += '</tr></thead><tbody>';
+
+            operations.forEach(operation => {
+                resultHTML += `<tr><td>${operation}</td>`;
+                variables.forEach(variable => {
+                    const value = result[variable]?.[operation] || 'N/A';
+                    resultHTML += `<td>${value}</td>`;
+                });
+                resultHTML += '</tr>';
+            });
+
+            resultHTML += '</tbody></table>';
+            document.getElementById('result').innerHTML = resultHTML;
+            document.getElementById('result').className = 'success';
+        }
+
+        async function generateVisualization() {
+            const selectedVariables = Array.from(document.querySelectorAll('.variable:checked')).map(input => input.value);
+            const selectedVisualization = document.querySelector('input[name="visualization"]:checked')?.value;
+
+            if (selectedVariables.length === 0 || !selectedVisualization) {
+                displayError('Please select at least one variable and a visualization type.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/generate_visualization', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        variables: selectedVariables,
+                        visualization: selectedVisualization
+                    })
+                });
+
+                const result = await response.json();
+                console.log("Full Backend Response:", result);
+
+                if (result.error || !result.result) {
+                    displayError(result.error || 'Unknown error occurred.');
+                    return;
+                }
+
+                // Extract the visualization URL properly
+                const visualizationURL = result.result?.[selectedVisualization] || Object.values(result.result || {})[0];
+                console.log("Extracted Visualization URL:", visualizationURL);
+
+                const resultContainer = document.getElementById('result');
+                resultContainer.innerHTML = ''; // Clear previous results
+                resultContainer.className = 'success';
+
+                if (visualizationURL && visualizationURL.startsWith('/static/')) {
+                    const iframe = document.createElement('iframe');
+                    iframe.src = visualizationURL;
+                    iframe.width = '75%';
+                    iframe.height = '500px';
+                    iframe.style.border = 'none';
+                    resultContainer.appendChild(iframe);
+                } else {
+                    displayError('Error generating visualization.');
+                }
+            } catch (error) {
+                console.error("Fetch error:", error);
+                displayError(error.message);
+            }
+        }
+
+
+
+        function togglePopulationMean() {
+            const tTestOneChecked = document.querySelector('input[name="hypothesis"][value="t-test-one"]').checked;
+            const populationMeanContainer = document.getElementById('population-mean-container');
+            
+            if (populationMeanContainer) {
+                populationMeanContainer.style.display = tTestOneChecked ? 'block' : 'none';
+            }
+        }
+
+        // Ensure event listeners are set up after the DOM loads
+        document.addEventListener("DOMContentLoaded", function () {
+            document.querySelectorAll('input[name="hypothesis"]').forEach(input => {
+                input.addEventListener('change', togglePopulationMean);
+            });
+
+            // Initial check in case the page loads with "t-test-one" preselected
+            togglePopulationMean();
+        });
+
+        async function generateHypothesis() {
+            const selectedVariables = Array.from(document.querySelectorAll('.variable:checked'))
+                .map(input => input.value);
+            const selectedTests = Array.from(document.querySelectorAll('input[name="hypothesis"]:checked'))
+                .map(input => input.value);
+            
+            const populationMeanInput = document.getElementById('population-mean');
+            const populationMean = populationMeanInput && populationMeanInput.value.trim() !== "" 
+                ? parseFloat(populationMeanInput.value) 
+                : null;
+
+            // Ensure population mean input is toggled properly
+            togglePopulationMean();
+
+            if (selectedVariables.length === 0 || selectedTests.length === 0) {
+                displayError('Please select at least one variable and one hypothesis test.');
+                return;
+            }
+
+            if (selectedTests.includes('t-test-one') && (populationMean === null || isNaN(populationMean))) {
+                displayError('Please provide a valid population mean for the one-sample t-test.');
+                return;
+            }
+
+            try {
+                // Show loading indicator
+                document.getElementById('result').innerHTML = 'Loading...';
+                document.getElementById('result').className = '';
+
+                const response = await fetch('/generate_hypothesis', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        variables: selectedVariables,
+                        test: selectedTests,
+                        population_mean: populationMean,
+                    }),
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    displayError(result.error);
+                } else if (Array.isArray(result.result)) {
+                    renderHypothesisResults(result.result);
+                } else {
+                    displayError('Unexpected server response format.');
+                }
+            } catch (error) {
+                displayError(`An error occurred: ${error.message}`);
+            }
+        }
+
+        function togglePopulationMean() {
+            const tTestOneChecked = document.querySelector('input[name="hypothesis"][value="t-test-one"]').checked;
+            const populationMeanContainer = document.getElementById('population-mean-container');
+            if (populationMeanContainer) {
+                populationMeanContainer.style.display = tTestOneChecked ? 'block' : 'none';
+            }
+        }
+
+        function renderHypothesisResults(results) {
+            let resultHTML = results.map(row => `
+                Test: ${row.test}<br>
+                Statistic: ${row.statistic !== null ? row.statistic.toFixed(4) : 'N/A'}<br>
+                P-Value: ${row.p_value !== null ? row.p_value.toFixed(4) : 'N/A'}<br>
+                Conclusion: ${row.conclusion !== null ? row.conclusion : 'N/A'}<br>
+                ${row.error ? `Error: ${row.error}<br>` : ''}
+                <br>
+            `).join('');
+
+            document.getElementById('result').innerHTML = resultHTML;
+            document.getElementById('result').className = 'success';
+        }
+
+        function displayError(message) {
+            const resultElement = document.getElementById('result');
+            resultElement.innerText = `Error: ${message}`;
+            resultElement.className = 'error';
+        }
+
+        // Event Listener for toggling population mean input visibility
+        document.querySelectorAll('input[name="hypothesis"]').forEach(input => {
+            input.addEventListener('change', togglePopulationMean);
+        });
+        
+        async function generateCorrelation() {
+            const selectedVariables = Array.from(document.querySelectorAll('.variable:checked')).map(input => input.value);
+            const selectedCorrelation = document.querySelector('input[name="correlation"]:checked')?.value;
+
+            if (selectedVariables.length < 2 || !selectedCorrelation) {
+                displayError('Please select at least two variables and a correlation type.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/generate_correlation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        variables: selectedVariables,
+                        correlation: selectedCorrelation
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    displayError(result.error);
+                } else {
+                    renderCorrelationResults(result.result);
+                }
+            } catch (error) {
+                displayError(error.message);
+            }
+        }
+
+        function renderCorrelationResults(result) {
+            let resultHTML = '<table><thead><tr><th>Variable Pair</th><th>Correlation</th><th>P-Value</th></tr></thead><tbody>';
+
+            for (const pair in result) {
+                const correlationData = result[pair];
+                resultHTML += `<tr><td>${pair}</td><td>${correlationData.correlation_value}</td><td>${correlationData.p_value}</td></tr>`;
+            }
+
+            resultHTML += '</tbody></table>';
+            document.getElementById('result').innerHTML = resultHTML;
+            document.getElementById('result').className = 'success';
+        }
+
+        function displayError(message) {
+            const resultElement = document.getElementById('result');
+            resultElement.innerText = `Error: ${message}`;
+            resultElement.className = 'error';
+        }
+
+
+    </script>
+</head>
+<body>
+    <!-- Navbar -->
+    <div class="navbar">
+        <div class="logo"><b>📊 Statistics Data Analysis</b></div>
+        <div class="links">
+            <a href="/">Home</a>
+            <a href="/data">Data Analysis</a>
+            <a href="/machine">Machine Learning</a>
+        </div>
+    </div>
+
+    <div class="da-container">
+        <h1>Welcome to the Data Analysis Page</h1>
+        <p>Data analysis is the process of inspecting, cleansing, transforming, and modeling data to discover useful information, inform conclusions, and support decision-making.</p>
+    
+        <div class="da-sections">
+            <div class="da-card">
+                <h2>📈 Descriptive Analysis</h2>
+                <p>Summarizes data through mean, median, mode, and variance.</p>
+            </div>
+    
+            <div class="da-card">
+                <h2>🔍 Diagnostic Analysis</h2>
+                <p>Identifies reasons behind outcomes by analyzing past data.</p>
+            </div>
+    
+            <div class="da-card">
+                <h2>⚙️ Predictive Analysis</h2>
+                <p>Uses historical data to forecast future trends.</p>
+            </div>
+    
+            <div class="da-card">
+                <h2>📊 Prescriptive Analysis</h2>
+                <p>Suggests actions based on predictive insights.</p>
+            </div>
+        </div>
+    
+
+    <!-- Step 1: Upload CSV -->
+    <label for="csvFile">Upload CSV:</label>
+    <input type="file" id="csvFile" accept=".csv">
+    <button type="button" onclick="uploadCSV()">Upload</button>
+
+    <!-- Step 2: Select Operations -->
+    <div id="step2" style="margin-top: 20px;">
+        <button type="button" onclick="toggleSection('operations')">Descriptive</button>
+        <button type="button" onclick="toggleSection('visualizations')">Visualization</button>
+        <button type="button" onclick="toggleSection('hypothesis')">Hypothesis</button>
+        <button type="button" onclick="toggleSection('correlation')">Correlation</button>
+        <!-- <button type="button" onclick="toggleSection('regression')">Regression</button> -->
+    </div>
+
+    <!-- Variable Selection -->
+    <div id="select-variables" style="display: none; margin-top: 20px; text-align: left;">
+        <h2>Select Variables</h2>
+        <h3>Continuous Variables</h3>
+        <div id="continuous-vars" class="checkbox-group"></div>
+        <h3>Categorical Variables</h3>
+        <div id="discrete-vars" class="checkbox-group"></div>
+    </div>
+
+    <!-- Descriptive Section -->
+    <div id="operations" style="text-align: left;">
+        <h2>Select Operations</h2>
+        <div class="checkbox-group">
+            <label><input type="checkbox" class="operation" value="mean"> Mean</label>
+            <label><input type="checkbox" class="operation" value="median"> Median</label>
+            <label><input type="checkbox" class="operation" value="mode"> Mode</label>
+            <label><input type="checkbox" class="operation" value="sum"> Sum</label>
+            <label><input type="checkbox" class="operation" value="stddev"> Standard Deviation</label>
+            <label><input type="checkbox" class="operation" value="variance"> Variance</label>
+            <label><input type="checkbox" class="operation" value="min"> Min</label>
+            <label><input type="checkbox" class="operation" value="max"> Max</label>
+            <label><input type="checkbox" class="operation" value="range"> Range</label>
+            <label><input type="checkbox" class="operation" value="q1"> Q1</label>
+            <label><input type="checkbox" class="operation" value="q3"> Q3</label>
+            <label><input type="checkbox" class="operation" value="iqr"> IQR</label>
+            <label><input type="checkbox" class="operation" value="skew"> Skew</label>
+            <label><input type="checkbox" class="operation" value="kurtosis"> Kurtosis</label>
+
+        </div>
+        <button type="button" onclick="performOperation()">Perform Operation</button>
+    </div>
+
+    <!-- Visualization Section -->
+    <div id="visualizations">
+        <h2 style="text-align: left;">Select Visualization</h2>
+        <div class="checkbox-group">
+            <label><input type="radio" name="visualization" value="histogram"> Histogram</label>
+            <label><input type="radio" name="visualization" value="pie"> Pie Chart</label>
+            <label><input type="radio" name="visualization" value="boxplot"> Boxplot</label>
+            <label><input type="radio" name="visualization" value="line"> Line Chart</label>
+            <label><input type="radio" name="visualization" value="scatter"> Scatter Plot</label>
+            <label><input type="radio" name="visualization" value="heatmap"> Correlation Plot</label>
+            <label><input type="radio" name="visualization" value="pairplot"> Pair-Plot</label>
+        </div>
+        <button type="button" onclick="generateVisualization()">Generate Visualization</button>
+    </div>
+
+    <!-- Hypothesis Testing Section -->
+    <div id="hypothesis" style="text-align: left;">
+        <h2>Select Statistical Test</h2>
+        <h3>Parametric tests</h3>
+        <div class="checkbox-group">
+            <label><input type="radio" name="hypothesis" value="t-test-one" onchange="togglePopulationMean()"> One Sample T-Test</label>
+            <label><input type="radio" name="hypothesis" value="t-test-pair"> T-Test Paired</label>
+            <label><input type="radio" name="hypothesis" value="t-test-ind"> T-Test Independent</label>
+            <label><input type="radio" name="hypothesis" value="chi-test"> Chi-Square Test</label>
+            <label><input type="radio" name="hypothesis" value="bartlett"> Bartlett Test</label>
+            <label><input type="radio" name="hypothesis" value="z-test"> Z Test</label>
+            <label><input type="radio" name="hypothesis" value="f-test"> F Test</label>
+            <label><input type="radio" name="hypothesis" value="anova"> ANOVA Test</label>
+            <!-- <label><input type="radio" name="hypothesis" value="anderson"> Anderson Darling Test</label> -->
+            <label><input type="radio" name="hypothesis" value="shapiro"> Shapiro Wilk Test</label>
+        </div>
+        <h3>Non-Parametric tests</h3>
+        <div class="checkbox-group">
+            <!-- <label><input type="radio" name="hypothesis" value="ksto"> Kolmogorov-Smirnov Test (One sample)</label> -->
+            <label><input type="radio" name="hypothesis" value="kstt"> Kolmogorov-Smirnov Test (Two sample)</label>
+            <label><input type="radio" name="hypothesis" value="wilcoxon"> Wilcoxon-signed rank Test</label>
+            <!-- <label><input type="radio" name="hypothesis" value="run"> Run Test</label> -->
+            <label><input type="radio" name="hypothesis" value="median"> Median Test</label>
+            <label><input type="radio" name="hypothesis" value="wald-test"> Wald-Wolfwitz run Test</label>
+            <label><input type="radio" name="hypothesis" value="mann-whitney"> Mann-Whitney U Test</label>
+            <!-- <label><input type="radio" name="hypothesis" value="cochran"> Cochran's Q Test</label> -->
+            <label><input type="radio" name="hypothesis" value="kruskal-wallis"> Kruskal-Wallis Test</label>
+            <label><input type="radio" name="hypothesis" value="friedman"> Friedman's Test</label>
+        </div>
+        <button type="button" onclick="generateHypothesis()">Hypothesis Testing</button>
+    </div>
+
+    <div id="population-mean-container" style="display: none; text-align: left;">
+        <h3>Population Mean</h3>
+        <input type="number" id="population-mean" placeholder="Enter population mean">
+    </div>
+
+    <!-- Correlation Section -->
+    <div id="correlation" style="text-align: left;">
+        <h2>Select Correlation</h2>
+        <div class="checkbox-group">
+            <label><input type="radio" name="correlation" value="pearson"> Pearson</label>
+            <label><input type="radio" name="correlation" value="spearman"> Spearman</label>
+            <label><input type="radio" name="correlation" value="kendall"> Kendall</label>
+        </div>
+        <button type="button" onclick="generateCorrelation()">Correlation</button>
+    </div>
+
+    <!-- Regression Section -->
+    <!-- <div id="regression" style="text-align: left;">
+        <h2>Regression Analysis</h2>
+        <h3>Select Independent Variables</h3>
+        <div id="regression-continuous-vars" class="checkbox-group"></div>
+        <h3>Select Dependent Variable</h3>
+        <div id="regression-radio-vars" class="checkbox-group"></div>
+        <h2>Select Regression</h2>
+        <div class="checkbox-group">
+            <label><input type="radio" name="regression-typ" value="linear"> Linear</label>
+            <label><input type="radio" name="regression-typ" value="logistic"> Logistic</label>
+        </div>
+        <button type="button" onclick="performRegression()">Regression</button>
+    </div> -->
+
+    <div id="result" class="result"></div>
+</body>
+</html>
