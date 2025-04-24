@@ -24,4 +24,4 @@ Automatically formatted PDF report, combining results and figures, ready for aca
 User-Friendly UI
 Responsive design (mobile/tablet/desktop).
 
-Built on a modular codebase in Python, HTML, and CSS—AutomatedStat can be easily extended with new tests and custom visualizations. Simply upload your data, pick your tests, and let the app handle the heavy lifting.
+Built on a modular codebase in Python, HTML, and CSS and can be easily extended with new tests and custom visualizations. Simply upload your data, pick your tests, and let the app handle the heavy lifting.
