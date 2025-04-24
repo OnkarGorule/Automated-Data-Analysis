@@ -1,6 +1,5 @@
 Effortless statistical analysis—just upload, select, and explore.
 AutomatedStat is a lightweight, browser-based application built with Python (Flask/Django), HTML5, and CSS3, that transforms raw CSV data into actionable insights in seconds. With a clean, intuitive interface, users can:
-
 1. Upload CSV Files
 Drag-and-drop or browse to select your CSV;
 Automatic header detection and preview.
