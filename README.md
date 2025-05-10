@@ -30,8 +30,6 @@ python app.py
 
 - Select the statistical tests you wish to perform.
 
-- Set your desired α-level.
-
 - View the results and interactive charts.
 
 ## Working
