@@ -11,13 +11,19 @@ from statsmodels.stats.weightstats import ztest
 from statsmodels.sandbox.stats.runs import runstest_1samp
 import statsmodels.api as sm
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, PolynomialFeatures
+from sklearn.neural_network import MLPClassifier, MLPRegressor
+from xgboost import XGBClassifier, XGBRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
-from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor
 from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
 from sklearn.svm import SVR, SVC
-from sklearn.metrics import accuracy_score, mean_squared_error
+from sklearn.naive_bayes import GaussianNB
+from collections import Counter
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, mean_squared_error, mean_absolute_error, r2_score, root_mean_squared_error
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import LabelEncoder
 matplotlib.use('Agg')
 import os
 
@@ -679,5 +685,204 @@ def generate_regression():
 
     return jsonify({'result': results})
 
+def evaluate_classifiers(X, y, selected_models):
+    # Split dataset
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    results = {}
+
+    if 'lr' in selected_models:
+        model = LogisticRegression(max_iter=1000)
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["Logistic Regression"] = classification_evaluate_metrics(y_test, y_pred)
+
+    if 'svm' in selected_models:
+        model = SVC()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["SVM"] = classification_evaluate_metrics(y_test, y_pred)
+
+    if 'rfc' in selected_models:
+        model = RandomForestClassifier()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["Random Forest"] = classification_evaluate_metrics(y_test, y_pred)
+
+    if 'dtc' in selected_models:
+        model = DecisionTreeClassifier()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["Decision Tree"] = classification_evaluate_metrics(y_test, y_pred)
+
+    if 'knc' in selected_models:
+        model = KNeighborsClassifier()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["KNN"] = classification_evaluate_metrics(y_test, y_pred)
+
+    if 'nb' in selected_models:
+        model = GaussianNB()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["Naive Bayes"] = classification_evaluate_metrics(y_test, y_pred)
+
+    if 'gbc' in selected_models:
+        model = GradientBoostingClassifier()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["Gradient Boosting"] = classification_evaluate_metrics(y_test, y_pred)
+
+    if 'xgbc' in selected_models:
+        model = XGBClassifier(use_label_encoder=False, eval_metric='logloss')
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["XGBoost"] = classification_evaluate_metrics(y_test, y_pred)
+
+    if 'nnc' in selected_models:
+        model = MLPClassifier(hidden_layer_sizes=(100,), max_iter=1000)
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["Neural Network"] = classification_evaluate_metrics(y_test, y_pred)
+
+    return results
+
+def classification_evaluate_metrics(y_true, y_pred):
+    return {
+        "accuracy": accuracy_score(y_true, y_pred),
+        "precision": precision_score(y_true, y_pred, average='weighted', zero_division=0),
+        "recall": recall_score(y_true, y_pred, average='weighted', zero_division=0),
+        "f1_score": f1_score(y_true, y_pred, average='weighted', zero_division=0)
+    }
+
+@app.route("/classification_evaluate", methods=["POST"])
+def classification_evaluate():
+    try:
+        data = request.json
+        # print("Received data:", data)  # DEBUG
+
+        df = pd.DataFrame(data["data"])
+        features = data["features"]
+        target = data["target"]
+        selected_models = data["selected_models"]
+        
+        X = df[features]
+        y = df[target]
+
+        # Encode categorical variables
+        if y.dtypes == 'object':
+            le = LabelEncoder()
+            y = le.fit_transform(y)
+        for col in X.columns:
+            if X[col].dtype == 'object':
+                le = LabelEncoder()
+                X[col] = le.fit_transform(X[col])
+
+        result = evaluate_classifiers(X, y, selected_models)
+        # print("Sending results:", result)  # DEBUG
+        return jsonify(result)
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({"error": str(e)})
+
+# Regression Evaluation Function
+def evaluate_regression(X, y, selected_models):
+    # Split dataset
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    results = {}
+
+    if 'linear' in selected_models:
+        model = LinearRegression()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["Linear Regression"] = regression_evaluate_metrics(y_test, y_pred)
+
+    if 'dtr' in selected_models:
+        model = DecisionTreeRegressor()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["Decision Tree"] = regression_evaluate_metrics(y_test, y_pred)
+
+    if 'poly-r' in selected_models:
+        poly = PolynomialFeatures(degree=2)
+        X_train_poly = poly.fit_transform(X_train)
+        X_test_poly = poly.transform(X_test)
+        model = LinearRegression()
+        model.fit(X_train_poly, y_train)
+        y_pred = model.predict(X_test_poly)
+        results["Polynomial Regression"] = regression_evaluate_metrics(y_test, y_pred)
+
+    if 'svr' in selected_models:
+        model = SVR()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["Support Vector Regression"] = regression_evaluate_metrics(y_test, y_pred)
+
+    if 'rfr' in selected_models:
+        model = RandomForestRegressor()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["Random Forest Regression"] = regression_evaluate_metrics(y_test, y_pred)
+
+    if 'gbr' in selected_models:
+        model = GradientBoostingRegressor()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["Gradient Boosting Regression"] = regression_evaluate_metrics(y_test, y_pred)
+
+    if 'xgbr' in selected_models:
+        model = XGBRegressor(objective='reg:squarederror')
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["XGBoost Regression"] = regression_evaluate_metrics(y_test, y_pred)
+
+    if 'nnr' in selected_models:
+        model = MLPRegressor(hidden_layer_sizes=(100,), max_iter=1000)
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        results["Neural Network Regression"] = regression_evaluate_metrics(y_test, y_pred)
+
+    return results
+
+def regression_evaluate_metrics(y_true, y_pred):
+    return {
+        "R2_Score": r2_score(y_true, y_pred),
+        "MAE": mean_absolute_error(y_true, y_pred),
+        "MSE": mean_squared_error(y_true, y_pred),
+        "RMSE": root_mean_squared_error(y_true, y_pred)
+    }
+
+@app.route("/regression_evaluate", methods=["POST"])
+def regression_evaluate():
+    try:
+        data = request.json
+        # print("Received data:", data)  # DEBUG
+
+        df = pd.DataFrame(data["data"])
+        features = data["features"]
+        target = data["target"]
+        selected_models = data["selected_models"]
+
+        X = df[features]
+        y = df[target]
+
+        # Convert numeric-looking object columns to float
+        for col in X.columns:
+            if X[col].dtype == 'object':
+                try:
+                    X[col] = X[col].astype(float)
+                except ValueError:
+                    continue  # Skip truly categorical columns
+
+        # Now handle remaining object columns (assumed categorical)
+        X = pd.get_dummies(X, drop_first=True)
+
+        result = evaluate_regression(X, y, selected_models)
+        # print("Sending results:", result)  # DEBUG
+        return jsonify(result)
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({"error": str(e)})
+
 if __name__ == '__main__':
     app.run(debug=True)
+

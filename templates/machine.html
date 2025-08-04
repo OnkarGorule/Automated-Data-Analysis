@@ -124,6 +124,7 @@
         .checkbox-group label {
             margin-right: 20px;
             margin-bottom: 10px;
+            display: inline-block;
         }
 
         .result {
@@ -132,7 +133,7 @@
 
         .success {
             font-weight: bold;
-            color: #008000;
+            color: #0077B6;
         }
 
         .error {
@@ -144,25 +145,28 @@
             width: 100%;
             margin-top: 20px;
             border-collapse: collapse;
+            border-radius: 5px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
 
         table th, table td {
             padding: 10px;
             text-align: center;
-            border: 1px solid #ddd;
+            border: 1px solid #90E0EF;
         }
 
         table th {
-            background-color: #4CAF50;
+            background-color: #0077B6;
             color: white;
         }
 
         table tr:nth-child(even) {
-            background-color: #f9f9f9;
+            background-color: #CAF0F8;
         }
 
         table tr:hover {
-            background-color: #f1f1f1;
+            background-color: #90E0EF;
         }
         /* Machine Learning Container */
         .ml-container {
@@ -257,39 +261,66 @@
         }
 
     </style>
-    <script>
+    
+        <script>
+        let parsedCSVRows = []; // Global variable to store CSV data
+
         function uploadCSV() {
             const fileInput = document.getElementById('csvFile');
             const file = fileInput.files[0];
-
             if (!file) {
-                alert('Please select a CSV file first.');
+                alert("Please select a CSV file");
                 return;
             }
 
             const reader = new FileReader();
-            reader.onload = function (event) {
-                const text = event.target.result;
+            reader.onload = function (e) {
+                const text = e.target.result;
+                const lines = text.split("\n").filter(line => line.trim() !== "");
+                const headers = lines[0].split(",").map(h => h.trim());
 
-                const rows = text.split('\n').map(row => row.split(',').map(v => v.trim()));
-                const all_vars = rows[0];  
-                const sampleRow = rows[1];  
-
-                document.getElementById('variablesSection').style.display = 'block';
-
-                const checkboxContainer = document.getElementById('checkboxContainer');
-                checkboxContainer.innerHTML = '';
-                all_vars.forEach(ind_variable => {
-                    checkboxContainer.innerHTML += `<label><input type="checkbox" id="${variable}" name="checkbox_vars" value="${variable}"> ${variable}</label>`;
+                // Convert CSV lines to array of objects
+                parsedCSVRows = lines.slice(1).map(line => {
+                    const values = line.split(",");
+                    let row = {};
+                    headers.forEach((header, index) => {
+                        row[header] = values[index] ? values[index].trim() : "";
+                    });
+                    return row;
                 });
 
+                // Infer data types
+                const firstDataRow = lines[1] ? lines[1].split(",") : [];
+                const columnTypes = headers.map((col, i) => inferDataType(firstDataRow[i] || ""));
+
+                // Predictor Variable (radio buttons)
                 const radioContainer = document.getElementById('radioContainer');
                 radioContainer.innerHTML = '';
-                all_vars.forEach((variable, index) => {
-                    const dataType = inferDataType(sampleRow[index]);
-                    radioContainer.innerHTML += `<label><input type="radio" name="radio_vars" value="${variable}" onchange="handleVariableSelection('${variable}', '${dataType}')"> ${variable}</label>`;
+                headers.forEach((col, i) => {
+                    radioContainer.innerHTML += `
+                        <label>
+                            <input type="radio" name="predictor" value="${col}" data-type="${columnTypes[i]}"
+                                onchange="handleVariableSelection('${col}', '${columnTypes[i]}')">
+                            ${col} (${columnTypes[i]})
+                        </label><br>`;
                 });
+
+                // Independent Variables (checkboxes)
+                const checkboxContainer = document.getElementById('checkboxContainer');
+                checkboxContainer.innerHTML = '';
+                headers.forEach((col, i) => {
+                    checkboxContainer.innerHTML += `
+                        <label>
+                            <input type="checkbox" name="independent" value="${col}">
+                            ${col} (${columnTypes[i]})
+                        </label><br>`;
+                });
+
+                // Show variable selection section
+                document.getElementById('variablesSection').style.display = 'block';
+                document.getElementById('variablesSection').scrollIntoView({ behavior: "smooth" });
             };
+
             reader.readAsText(file);
         }
 
@@ -310,9 +341,11 @@
             if (dataType === 'numerical') {
                 regressionSection.style.display = 'block';
                 classificationSection.style.display = 'none';
+                regressionSection.scrollIntoView({ behavior: "smooth" });
             } else {
                 regressionSection.style.display = 'none';
                 classificationSection.style.display = 'block';
+                classificationSection.scrollIntoView({ behavior: "smooth" });
             }
         }
 
@@ -323,13 +356,166 @@
             });
         }
 
-        function algorithms() {
-            document.getElementById('machine').style.display = 'block';
+        // === Classification Evaluation ===
+        function getClassificationEvaluation() {
+            const selectedModels = [...document.querySelectorAll('input[name="classification"]:checked')]
+                .map(cb => cb.value);
+
+            if (selectedModels.length === 0) {
+                displayError("Please select at least one classification model.");
+                return;
+            }
+
+            const selectedFeatures = [...document.querySelectorAll('input[name="independent"]:checked')]
+                .map(cb => cb.value);
+
+            if (selectedFeatures.length === 0) {
+                displayError("Please select at least one independent variable.");
+                return;
+            }
+
+            const targetRadio = document.querySelector('input[name="predictor"]:checked');
+            if (!targetRadio) {
+                displayError("Please select a predictor variable.");
+                return;
+            }
+            const target = targetRadio.value;
+
+            fetch("/classification_evaluate", {
+                method: "POST",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    data: parsedCSVRows,
+                    features: selectedFeatures,
+                    target: target,
+                    selected_models: selectedModels
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    displayError(data.error);
+                    return;
+                }
+
+                renderClassificationResults(data); // ✅ Use a separate function for rendering
+            })
+            .catch(err => {
+                displayError("Failed to get evaluation metrics: " + err.message);
+            });
         }
 
-        
+        function renderClassificationResults(resultData) {
+            let resultHTML = '<table><thead><tr><th>Model</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1 Score</th></tr></thead><tbody>';
+
+            for (let model in resultData) {
+                let metrics = resultData[model];
+                resultHTML += `<tr>
+                    <td>${model}</td>
+                    <td>${Number(metrics.accuracy).toFixed(4)}</td>
+                    <td>${Number(metrics.precision).toFixed(4)}</td>
+                    <td>${Number(metrics.recall).toFixed(4)}</td>
+                    <td>${Number(metrics.f1_score).toFixed(4)}</td>
+                </tr>`;
+            }
+
+            resultHTML += '</tbody></table>';
+
+            const resultsDiv = document.getElementById("classificationResults");
+            resultsDiv.innerHTML = resultHTML;
+            resultsDiv.className = "success";
+
+            // ✅ Auto scroll to the results
+            resultsDiv.scrollIntoView({ behavior: "smooth" });
+        }
+
+        function displayError(message) {
+            const resultDiv = document.getElementById('classificationResults');
+            resultDiv.innerHTML = `<div class="error">${message}</div>`;
+        }
+
+
+        // === Regression Evaluation ===
+        function getRegressionEvaluation() {
+            const selectedModels = [...document.querySelectorAll('input[name="regression"]:checked')]
+                .map(cb => cb.value);
+
+            if (selectedModels.length === 0) {
+                displayRegressionError("Please select at least one regression model.");
+                return;
+            }
+
+            const selectedFeatures = [...document.querySelectorAll('input[name="independent"]:checked')]
+                .map(cb => cb.value);
+
+            if (selectedFeatures.length === 0) {
+                displayRegressionError("Please select at least one independent variable.");
+                return;
+            }
+
+            const targetRadio = document.querySelector('input[name="predictor"]:checked');
+            if (!targetRadio) {
+                displayRegressionError("Please select a predictor variable.");
+                return;
+            }
+            const target = targetRadio.value;
+
+            fetch("/regression_evaluate", {
+                method: "POST",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    data: parsedCSVRows,
+                    features: selectedFeatures,
+                    target: target,
+                    selected_models: selectedModels
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    displayRegressionError(data.error);
+                    return;
+                }
+
+                renderRegressionResults(data);
+            })
+            .catch(err => {
+                displayRegressionError("Failed to get evaluation metrics: " + err.message);
+            });
+        }
+
+        function renderRegressionResults(resultData) {
+            let resultHTML = '<table><thead><tr><th>Model</th><th>R² Score</th><th>MAE</th><th>MSE</th><th>RMSE</th></tr></thead><tbody>';
+
+            for (let model in resultData) {
+                let metrics = resultData[model];
+                resultHTML += `<tr>
+                    <td>${model}</td>
+                    <td>${Number(metrics.R2_Score).toFixed(4)}</td>
+                    <td>${Number(metrics.MAE).toFixed(4)}</td>
+                    <td>${Number(metrics.MSE).toFixed(4)}</td>
+                    <td>${Number(metrics.RMSE).toFixed(4)}</td>
+                </tr>`;
+            }
+
+            resultHTML += '</tbody></table>';
+
+            const resultsDiv = document.getElementById("regressionResults");
+            resultsDiv.innerHTML = resultHTML;
+            resultsDiv.className = "success";
+
+            // ✅ Auto scroll to the results
+            resultsDiv.scrollIntoView({ behavior: "smooth" });
+        }
+
+        function displayRegressionError(message) {
+            const resultDiv = document.getElementById('regressionResults');
+            resultDiv.innerHTML = `<div class="error">${message}</div>`;
+            resultDiv.className = "error";
+        }
 
     </script>
+    
 </head>
 <body>
     <!-- Navbar -->
@@ -378,38 +564,39 @@
     </div>
 
     <!-- Regression Algorithms -->
-<div id="regressionSection" style="display:none; margin-left: 20px;">
-    <h2>Select Regression Algorithm</h2>
-    <div class="checkbox-group">
-            <label><input type="checkbox" name="regression" value="linerar"> Linear Regression</label>
-            <label><input type="checkbox" name="regression" value="dtr"> Decision Tree</label>
-            <label><input type="checkbox" name="regression" value="poly-r"> Polynomial Regression</label>
-            <label><input type="checkbox" name="regression" value="svr"> Support Vector Regression (SVR)</label>
-            <label><input type="checkbox" name="regression" value="rfr"> Random Forest Regression</label>
-            <label><input type="checkbox" name="regression" value="gbr"> Gradient Boosting Regression</label>
-            <label><input type="checkbox" name="regression" value="xgbr"> XGBoost Regression</label>
-            <label><input type="checkbox" name="regression" value="knnr"> K-Nearest Neighbors Regression (KNN)</label>
-            <label><input type="checkbox" name="regression" value="nnr"> Neural Networks (for Regression)</label>
+    <div id="regressionSection" style="display:none; margin-left: 20px;">
+        <h2>Select Regression Algorithm</h2>
+        <div class="checkbox-group">
+                <label><input type="checkbox" name="regression" value="linear"> Linear Regression</label>
+                <label><input type="checkbox" name="regression" value="dtr"> Decision Tree</label>
+                <label><input type="checkbox" name="regression" value="poly-r"> Polynomial Regression</label>
+                <label><input type="checkbox" name="regression" value="svr"> Support Vector Regression (SVR)</label>
+                <label><input type="checkbox" name="regression" value="rfr"> Random Forest Regression</label>
+                <label><input type="checkbox" name="regression" value="gbr"> Gradient Boosting Regression</label>
+                <label><input type="checkbox" name="regression" value="xgbr"> XGBoost Regression</label>
+                <label><input type="checkbox" name="regression" value="nnr"> Neural Networks (for Regression)</label>
+        </div>
+        <button onclick="getRegressionEvaluation()">Regression Results</button>
+        <div id="regressionResults" style="margin-top:10px;"></div>
     </div>
-    <button>Results</button>
-</div>
 
-<!-- Classification Algorithms -->
-<div id="classificationSection" style="display:none; margin-left: 20px;">
-    <h2>Select Classification Algorithm</h2>
-    <div class="checkbox-group">
-        <label><input type="checkbox" name="classification" value="lr"> Logistic Regression</label>
-            <label><input type="checkbox" name="classification" value="knc"> K-Nearest Neighbors (KNN)</label>
-            <label><input type="checkbox" name="classification" value="svm"> Support Vector Machines (SVM)</label>
-            <label><input type="checkbox" name="classification" value="dtc"> Decision Tree Classifier</label>
-            <label><input type="checkbox" name="classification" value="rfc"> Random Forest Classifier</label>
-            <label><input type="checkbox" name="classification" value="gbc"> Gradient Boosting Classifier</label>
-            <label><input type="checkbox" name="classification" value="xgbc"> XGBoost Classifier</label>
-            <label><input type="checkbox" name="classification" value="nb"> Naive Bayes</label>
-            <label><input type="checkbox" name="classification" value="nnc"> Neural Networks (for Classification)</label>
+    <!-- Classification Algorithms -->
+    <div id="classificationSection" style="display:none; margin: 20px;">
+        <h2>Select Classification Algorithm</h2>
+        <div class="checkbox-group">
+                <label><input type="checkbox" name="classification" value="lr"> Logistic Regression</label>
+                <label><input type="checkbox" name="classification" value="knc"> K-Nearest Neighbors (KNN)</label>
+                <label><input type="checkbox" name="classification" value="svm"> Support Vector Machines (SVM)</label>
+                <label><input type="checkbox" name="classification" value="dtc"> Decision Tree Classifier</label>
+                <label><input type="checkbox" name="classification" value="rfc"> Random Forest Classifier</label>
+                <label><input type="checkbox" name="classification" value="gbc"> Gradient Boosting Classifier</label>
+                <label><input type="checkbox" name="classification" value="xgbc"> XGBoost Classifier</label>
+                <label><input type="checkbox" name="classification" value="nb"> Naive Bayes</label>
+                <label><input type="checkbox" name="classification" value="nnc"> Neural Networks (for Classification)</label>
+        </div>
+        <button onclick="getClassificationEvaluation()">Classification Results</button>
+        <div id="classificationResults" style="margin-top:10px;"></div>
     </div>
-    <button>Results</button>
-</div>
 
 </body>
 </html>

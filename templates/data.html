@@ -162,6 +162,9 @@
             width: 100%;
             margin-top: 20px;
             border-collapse: collapse;
+            border-radius: 5px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
 
         table th, table td {
@@ -340,6 +343,7 @@
             resultHTML += '</tbody></table>';
             document.getElementById('result').innerHTML = resultHTML;
             document.getElementById('result').className = 'success';
+            document.getElementById('result').scrollIntoView({ behavior: "smooth" });
         }
 
         async function generateVisualization() {
@@ -376,6 +380,7 @@
                 const resultContainer = document.getElementById('result');
                 resultContainer.innerHTML = ''; // Clear previous results
                 resultContainer.className = 'success';
+                resultContainer.scrollIntoView({ behavior: "smooth" });
 
                 if (visualizationURL && visualizationURL.startsWith('/static/')) {
                     const iframe = document.createElement('iframe');
@@ -487,6 +492,7 @@
 
             document.getElementById('result').innerHTML = resultHTML;
             document.getElementById('result').className = 'success';
+            document.getElementById('result').scrollIntoView({ behavior: "smooth" });
         }
 
         function displayError(message) {
@@ -544,6 +550,7 @@
             resultHTML += '</tbody></table>';
             document.getElementById('result').innerHTML = resultHTML;
             document.getElementById('result').className = 'success';
+            document.getElementById('result').scrollIntoView({ behavior: "smooth" });
         }
 
         function displayError(message) {
