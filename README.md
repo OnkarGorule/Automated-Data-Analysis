@@ -1,5 +1,5 @@
 ## Automated Data Analysis
-Automated Data Analysis is a web application built with Python (Flask), HTML, and CSS that transforms CSV uploads into immediate statistical insights. Users can upload a CSV file, select statistical tests (e.g., t-tests, ANOVA, chi-square, nonparametric tests), customize significance levels (α-levels), and view interactive charts generated with Plotly.
+Automated Data Analysis is a web application built with Python (Flask), HTML, and CSS that transforms CSV uploads into immediate statistical insights. Users can upload a CSV file, select statistical tests (e.g., t-tests, ANOVA, chi-square, nonparametric tests), customize significance levels (α-levels), and view interactive charts generated with Plotly. In addition, it integrates machine learning algorithms such as regression, classification, and clustering, allowing users to perform predictive modeling and evaluate performance metrics directly within the platform.
 ## Features
 
 - **CSV Upload**: Easily upload your dataset in CSV format.
